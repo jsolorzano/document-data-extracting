@@ -120,9 +120,16 @@ class DocExtractController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            $message = $e->getMessage();
+
+            if (stristr($message, 'RESOURCE_EXHAUSTED') || stristr($message, '429')
+                 || stristr($message, 'You exceeded your current quota') || stristr($message, 'Quota exceeded')) {
+                $message = 'Se ha alcanzado el límite de peticiones de la API. Por favor, reintenta en un momento (1 - 2 minutos).';
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => 'Error al extraer datos: ' . $e->getMessage()
+                'message' => 'Error al extraer datos: ' . $message
             ], 500);
         }
     }
