@@ -49,7 +49,7 @@
         <div class="mt-3 flex flex-col gap-3">
             <span>Mensaje del servidor: </span><span x-text="docAlert"></span>
             
-            <span>Mensajes de error: </span><span x-text="docAlert"></span>
+            <span>Mensajes de error: </span><span class="text-red-400" x-text="errorMessage"></span>
         </div>
     </div>
     <script>
@@ -126,7 +126,12 @@
                         if (result.success) {
                             this.extractedData = result.data;
                             console.log("Extracted data: ", this.extractedData);
+                            this.doc_number = this.extractedData[0].announcementNumber;
+                            this.doc_issue = this.extractedData[0].periodAssignment[0].startDate.slice(0, 10);
+                            this.doc_expires = this.extractedData[0].periodAssignment[0].endDate.slice(0, 10);
+                            this.doc_days = this.extractedData[0].days;
                         } else {
+                            console.log("Error: ", result.message);
                             this.errorMessage = result.message || 'Error desconocido en el servidor.';
                         }
                     } catch (error) {
