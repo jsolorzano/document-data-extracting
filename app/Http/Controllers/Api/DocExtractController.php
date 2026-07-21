@@ -23,7 +23,23 @@ class DocExtractController extends Controller
         ]);
 
         $file = $request->file('document');
-        $fileData = base64_encode(file_get_contents($file->getRealPath()));
+
+        if (!$file || !$file->isValid()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El archivo no subió correctamente o está dañado.'
+            ], 400);
+        }
+
+        // Asegurarse de que realmente es un archivo y no un directorio
+        if (is_dir($file->getRealPath())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Se ha recibido un directorio en lugar de un archivo.'
+            ], 400);
+        }
+
+        $fileData = base64_encode($file->get());
         $mimeTypeString = $file->getMimeType();
 
         // 2. Mapeamos dinámicamente el tipo MIME según el archivo subido
