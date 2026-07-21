@@ -19,11 +19,21 @@ class DocExtractController extends Controller
     {
         // Validamos que el archivo sea estrictamente un PDF
         $request->validate([
-            'document' => 'required|file|mimes:pdf|max:10240',
+            'document' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240'
         ]);
 
         $file = $request->file('document');
         $fileData = base64_encode(file_get_contents($file->getRealPath()));
+        $mimeTypeString = $file->getMimeType();
+
+        // 2. Mapeamos dinámicamente el tipo MIME según el archivo subido
+        $geminiMimeType = match ($mimeTypeString) {
+            'application/pdf' => MimeType::APPLICATION_PDF,
+            'image/jpeg' => MimeType::IMAGE_JPEG,
+            'image/png' => MimeType::IMAGE_PNG,
+            'image/webp' => MimeType::IMAGE_WEBP,
+            default => throw new \InvalidArgumentException("Tipo de archivo no soportado: {$mimeTypeString}"),
+        };
 
         // 1. Inicializar el cliente usando el Facade o la clase estática de la librería
         $client = Gemini::client(config('services.gemini.key'));
@@ -76,12 +86,12 @@ class DocExtractController extends Controller
                 responseMimeType: ResponseMimeType::APPLICATION_JSON,
                 responseSchema: $schema
             );
-            // 3. Usamos MimeType::APPLICATION_PDF para solucionar la advertencia del editor
+            // 3. Prompt neutral para PDFs o Imágenes
             $response = $client->generativeModel(model: 'gemini-2.5-flash')
             ->withGenerationConfig($generationConfig)
-            ->generateContent('Extract the structured data from the following PDF file',
+            ->generateContent('Extract the structured data from the provided document image or file.',
                 new Blob(
-                    mimeType: MimeType::APPLICATION_PDF,
+                    mimeType: $geminiMimeType, // Tipo MIME dinámico
                     data: $fileData
                 )
             );

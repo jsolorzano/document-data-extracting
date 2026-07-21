@@ -123,7 +123,7 @@
 
                         const result = await response.json();
 
-                        if (result.success) {
+                        if (result.success && (Array.isArray(result.data) && result.data.length > 0)) {
                             this.extractedData = result.data;
                             console.log("Extracted data: ", this.extractedData);
                             this.doc_number = this.extractedData[0].announcementNumber;
@@ -131,8 +131,8 @@
                             this.doc_expires = this.extractedData[0].periodAssignment[0].endDate.slice(0, 10);
                             this.doc_days = this.extractedData[0].days;
                         } else {
-                            console.log("Error: ", result.message);
-                            this.errorMessage = result.message || 'Error desconocido en el servidor.';
+                            console.log("Error: ", result);
+                            this.errorMessage = result.message || 'El archivo no tiene los datos indicados.';
                         }
                     } catch (error) {
                         this.errorMessage = 'No se pudo conectar con el servidor backend.';
