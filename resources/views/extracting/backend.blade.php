@@ -47,9 +47,9 @@
         </div>
 
         <div class="mt-3 flex flex-col gap-3">
-            <span>Mensaje del servidor: </span><span x-text="docAlert"></span>
+            <span>Advertencias: </span><span class="text-orange-400" x-text="docAlert"></span>
             
-            <span>Mensajes de error: </span><span class="text-red-400" x-text="errorMessage"></span>
+            <span>Errores: </span><span class="text-red-400" x-text="errorMessage"></span>
         </div>
     </div>
     <script>
@@ -71,13 +71,15 @@
 
                 validateType(target){
                     let result = true;
-                    let matchText = "application/pdf|image/jpeg|image/jpg|image/png|image/webp";
+                    let matchText = "application/pdf|application/x-pdf|application/acrobat|applications/vnd.pdf|text/pdf|text/x-pdf|image/jpeg|image/jpg|image/png|image/webp";
                     let isValid = target.files[0].type.match(matchText);
 
                     if(isValid){
+                        this.docAlert = '';
                         result = true;
                     }else{
-                        this.docAlert = '{{__("Invalid file: You must upload a file in a supported format (jpeg, png, jpg, webp)")}}';
+                        this.docAlert = '{{__("Invalid file: You must upload a file in a supported format (pdf, jpeg, png, jpg, webp)")}}';
+                        this.errorMessage = '';
                         result = false;
                     }
                     return result;
@@ -103,6 +105,7 @@
 
                     this.loading = true;
                     this.errorMessage = '';
+                    this.docAlert = '';
                     this.extractedData = null;
 
                     // Preparamos el payload como FormData
@@ -130,6 +133,7 @@
                             this.doc_issue = this.extractedData[0].periodAssignment[0].startDate.slice(0, 10);
                             this.doc_expires = this.extractedData[0].periodAssignment[0].endDate.slice(0, 10);
                             this.doc_days = this.extractedData[0].days;
+                            this.errorMessage = '';
                         } else {
                             console.log("Error: ", result);
                             this.errorMessage = result.message || 'El archivo no tiene los datos indicados.';
