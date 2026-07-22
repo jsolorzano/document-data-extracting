@@ -63,6 +63,8 @@
                 doc_days: '',
                 docAlert: '',
 
+                loading: false,
+
                 validateType(target){
                     let result = true;
                     let matchText = "application/pdf|image/jpeg|image/jpg|image/png|image/webp";
@@ -96,7 +98,7 @@
                     reader.onload = (e) => {
                         this.base64Doc = e.target.result;
                         //console.log('base64Data: ', this.base64Doc);
-                        this.verifyDataWithGemini(this.base64Doc);
+                        this.verifyDataWithGemini(this.base64Doc, file.type);
                     };
                     reader.readAsDataURL(file);
                     // End Get base64 data
@@ -105,82 +107,113 @@
                 /**
                  * Extract the required data from the document using the Gemini API.
                  */
-                async verifyDataWithGemini(base64Doc){
+                async verifyDataWithGemini(base64Doc, type){
                     //console.log('Consultando a Gemini...');
 
-                    const ai = new GeminiAI({ apiKey: "{{config('services.gemini.key')}}" });
+                    try {
+                        //console.log("Document: ", base64Doc);
+                        //return false;
+                        let mimeTypeString = type;
+                        let segmentSplit;
 
-                    const contents = [
-                        { text: "Extract the structured data from the following PDF file" },
-                        {
-                            inlineData: {
-                                mimeType: 'application/pdf',
-                                data: base64Doc.split('data:application/pdf;base64,')[1]
-                            }
+                        switch (mimeTypeString) {
+                            case 'application/pdf':
+                                segmentSplit = 'data:application/pdf;base64,';
+                                break;
+                            case 'image/jpeg':
+                                segmentSplit = 'data:image/jpeg;base64,';
+                                break;
+                            case 'image/png':
+                                segmentSplit = 'data:image/png;base64,';
+                                break;
+                            case 'image/webp':
+                                segmentSplit = 'data:image/webp;base64,';
+                                break;
+                            default:
+                                throw new Error(`Tipo de archivo no soportado: ${mimeTypeString}`);
                         }
-                    ];
 
-                    const config = {
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    announcementNumber: {
-                                        type: Type.STRING,
-                                        description: "The ad number e.g. 12345678"
-                                    },
-                                    date: {
-                                        type: Type.STRING,
-                                        description: "The date of the ad e.g. 01.01.2024",
-                                        format: "date-time"
-                                    },
-                                    periodAssignment: {
-                                        type: Type.ARRAY,
-                                        description: "Start date and end date of the announcement",
-                                        items: {
-                                            type: Type.OBJECT,
-                                            properties: {
-                                                startDate: {
-                                                    type: Type.STRING,
-                                                    format: "date-time"
-                                                },
-                                                endDate: {
-                                                    type: Type.STRING,
-                                                    format: "date-time"
+                        const ai = new GeminiAI({ apiKey: "{{config('services.gemini.key')}}" });
+
+                        const contents = [
+                            { text: "Extract the structured data from the following PDF file" },
+                            {
+                                inlineData: {
+                                    mimeType: mimeTypeString,
+                                    data: base64Doc.split(segmentSplit)[1]
+                                }
+                            }
+                        ];
+
+                        const config = {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: Type.ARRAY,
+                                items: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        announcementNumber: {
+                                            type: Type.STRING,
+                                            description: "The ad number e.g. 12345678"
+                                        },
+                                        date: {
+                                            type: Type.STRING,
+                                            description: "The date of the ad e.g. 01.01.2024",
+                                            format: "date-time"
+                                        },
+                                        periodAssignment: {
+                                            type: Type.ARRAY,
+                                            description: "Start date and end date of the announcement",
+                                            items: {
+                                                type: Type.OBJECT,
+                                                properties: {
+                                                    startDate: {
+                                                        type: Type.STRING,
+                                                        format: "date-time"
+                                                    },
+                                                    endDate: {
+                                                        type: Type.STRING,
+                                                        format: "date-time"
+                                                    }
                                                 }
                                             }
+                                        },
+                                        days: {
+                                            type: Type.FLOAT,
+                                            description: "Total days announced"
                                         }
                                     },
-                                    days: {
-                                        type: Type.FLOAT,
-                                        description: "Total days announced"
-                                    }
+                                    propertyOrdering: ["announcementNumber", "date", "periodAssignment", "days"],
                                 },
-                                propertyOrdering: ["announcementNumber", "date", "periodAssignment", "days"],
-                            },
+                            }
                         }
-                    }
 
-                    const response = await ai.models.generateContent({
-                        model: "gemini-2.5-flash",
-                        contents: contents,
-                        config: config
-                    });
-                    result = JSON.parse(response.text);
-                    /* console.log(result);
-                    console.log(typeof result);
-                    console.log(Array.isArray(result));
-                    console.log(result instanceof Object); */
+                        const response = await ai.models.generateContent({
+                            model: "gemini-2.5-flash",
+                            contents: contents,
+                            config: config
+                        });
+                        result = JSON.parse(response.text);
+                        /* console.log(result);
+                        console.log(typeof result);
+                        console.log(Array.isArray(result));
+                        console.log(result instanceof Object); */
 
-                    if(result.length == 0){
-                        this.docAlert = 'No se encontraron los datos requeridos';
-                    }else{
-                        this.doc_number = result[0].announcementNumber;
-                        this.doc_issue = result[0].periodAssignment[0].startDate.slice(0, 10);
-                        this.doc_expires = result[0].periodAssignment[0].endDate.slice(0, 10);
-                        this.doc_days = result[0].days;
+                        if(Array.isArray(result) && result.length == 0){
+                            this.docAlert = 'El archivo no tiene los datos indicados.';
+                        }else if(result.error){
+                            this.docAlert = result.error.message || 'Error durante la extracción.';
+                        }else{
+                            this.doc_number = result[0].announcementNumber;
+                            this.doc_issue = result[0].periodAssignment[0].startDate.slice(0, 10);
+                            this.doc_expires = result[0].periodAssignment[0].endDate.slice(0, 10);
+                            this.doc_days = result[0].days;
+                        }
+                    } catch (error) {
+                        this.docAlert = error.message || 'No se pudo conectar con el servidor backend.';
+                        console.error(error.message || 'No se pudo conectar con el servidor backend.');
+                    } finally {
+                        this.loading = false;
                     }
                 },
             }
