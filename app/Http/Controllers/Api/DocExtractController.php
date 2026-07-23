@@ -18,10 +18,26 @@ class DocExtractController extends Controller
     public function extract(Request $request)
     {
         try {
+            // 1. Verificación previa de errores de subida nativos de PHP (antes del validate)
+            if (isset($_FILES['document']) && $_FILES['document']['error'] !== UPLOAD_ERR_OK) {
+                $errorCode = $_FILES['document']['error'];
+                
+                if ($errorCode === UPLOAD_ERR_INI_SIZE || $errorCode === UPLOAD_ERR_FORM_SIZE) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'El archivo supera el límite de tamaño permitido por el servidor (' . ini_get('upload_max_filesize') . ').'
+                    ], 413); // Payload Too Large
+                }
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error al subir el archivo al servidor (Código PHP: ' . $errorCode . ').'
+                ], 400);
+            }
 
             $upload_max_filesize = ini_parse_quantity(ini_get('upload_max_filesize')) / 1024;
 
-            // Validamos que el archivo sea estrictamente un PDF
+            // Validamos el documento
             $this->validate($request, [
                 'document' => [
                     'required',
@@ -51,7 +67,7 @@ class DocExtractController extends Controller
             $fileData = base64_encode($file->get());
             $mimeTypeString = $file->getMimeType();
 
-            // 2. Mapeamos dinámicamente el tipo MIME según el archivo subido
+            // Mapeamos dinámicamente el tipo MIME según el archivo subido
             $geminiMimeType = match ($mimeTypeString) {
                 'application/pdf' => MimeType::APPLICATION_PDF,
                 'image/jpeg' => MimeType::IMAGE_JPEG,
@@ -60,7 +76,7 @@ class DocExtractController extends Controller
                 default => throw new \InvalidArgumentException("Tipo de archivo no soportado: {$mimeTypeString}"),
             };
 
-            // 1. Inicializar el cliente usando el Facade o la clase estática de la librería
+            // Inicializar el cliente usando la API de Gemini
             $client = Gemini::client(config('services.gemini.key'));
 
             // Definición del esquema estructurado usando las clases nativas del SDK
@@ -105,15 +121,16 @@ class DocExtractController extends Controller
             );
             
             // 1. Construimos el objeto de configuración estructurado usando la clase correcta del SDK
-            // 2. Usamos 'generativeModel' pasándole explícitamente el string de 'gemini-2.5-flash'
             $generationConfig = new GenerationConfig(
                 responseMimeType: ResponseMimeType::APPLICATION_JSON,
                 responseSchema: $schema
             );
-            // 3. Prompt neutral para PDFs o Imágenes
+            // 2. Prompt neutral para PDFs o Imágenes
+            // Usamos 'generativeModel' pasándole explícitamente el string de 'gemini-2.5-flash'
             $response = $client->generativeModel(model: 'gemini-2.5-flash')
             ->withGenerationConfig($generationConfig)
-            ->generateContent('Extract the structured data from the provided document image or file.',
+            ->generateContent(
+                'Extract the structured data from the provided document image or file.',
                 new Blob(
                     mimeType: $geminiMimeType, // Tipo MIME dinámico
                     data: $fileData
@@ -127,14 +144,17 @@ class DocExtractController extends Controller
                 'data' => $extractedData
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $message = $e->getMessage();
             $code = 500;
 
             if ($e instanceof \Illuminate\Validation\ValidationException) {
                 $code = 422;
+                // Obtenemos el primer mensaje de error formateado de Laravel
+                $firstError = collect($e->errors())->flatten()->first();
+                $message = $firstError ?? 'Los datos proporcionados no son válidos.';
             } elseif ($e instanceof \Illuminate\Http\Exceptions\PostTooLargeException) {
-                $message = "El archivo supera el límite de tamaño permitido (".ini_get('upload_max_filesize').").";
+                $message = "La petición supera el límite de tamaño permitido.";
                 $code = 413;
             } else {
                 if (stristr($message, 'RESOURCE_EXHAUSTED') || stristr($message, '429')
