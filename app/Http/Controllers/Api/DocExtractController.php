@@ -18,33 +18,6 @@ class DocExtractController extends Controller
     public function extract(Request $request)
     {
         try {
-            //dd($request);
-
-            /*// Captura directamente la superglobal de PHP
-            if (isset($_FILES['document'])) {
-                $errorCode = $_FILES['document']['error'];
-                
-                // Mapeo de errores nativos de PHP
-                $errors = [
-                    0 => 'UPLOAD_ERR_OK (Sin error)',
-                    1 => 'UPLOAD_ERR_INI_SIZE (Excede upload_max_filesize en php.ini)',
-                    2 => 'UPLOAD_ERR_FORM_SIZE (Excede MAX_FILE_SIZE del formulario HTML)',
-                    3 => 'UPLOAD_ERR_PARTIAL (El archivo se subió parcialmente)',
-                    4 => 'UPLOAD_ERR_NO_FILE (No se subió ningún archivo)',
-                    6 => 'UPLOAD_ERR_NO_TMP_DIR (Falta la carpeta temporal en php.ini)',
-                    7 => 'UPLOAD_ERR_CANT_WRITE (Error al escribir el archivo en el disco)',
-                    8 => 'UPLOAD_ERR_EXTENSION (Una extensión de PHP detuvo la subida)',
-                ];
-
-                return response()->json([
-                    'php_raw_error_code' => $errorCode,
-                    'description' => $errors[$errorCode] ?? 'Error desconocido',
-                    'file_name' => $_FILES['document']['name'],
-                    'file_size_bytes' => $_FILES['document']['size'],
-                ], 400);
-            }
-
-            return response()->json(['message' => 'PHP ni siquiera recibió $_FILES'], 400);*/
 
             $upload_max_filesize = ini_parse_quantity(ini_get('upload_max_filesize')) / 1024;
 
