@@ -27,6 +27,11 @@
             <div class="mt-1 text-sm text-gray-500" id="doc_help">Por favor, asegúrese de que la foto sea nítida y que incluya ambas caras del documento si aplica.</div>
         </div>
 
+        <div class="inline-flex items-center px-4 py-2 gap-2" x-show="loading">
+            <div class="h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-t-transparent"></div>
+            <span>Procesando...</span>
+        </div>
+
         <div class="mt-3">
             <ul>
                 <li>
@@ -137,6 +142,10 @@
                         } else {
                             console.log("Error: ", result);
                             this.errorMessage = result.message || 'El archivo no tiene los datos indicados.';
+                            this.doc_number = '';
+                            this.doc_issue = '';
+                            this.doc_expires = '';
+                            this.doc_days = '';
                         }
                     } catch (error) {
                         this.errorMessage = 'No se pudo conectar con el servidor backend.';
