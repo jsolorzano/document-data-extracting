@@ -12,6 +12,7 @@ use Gemini\Enums\DataType; // Importante para los tipos de datos
 use Gemini\Enums\MimeType;
 use Gemini\Enums\ResponseMimeType;
 use Illuminate\Http\Request;
+use PhpOffice\PhpPresentation\IOFactory;
 
 class DocExtractController extends Controller
 {
@@ -42,7 +43,7 @@ class DocExtractController extends Controller
                 'document' => [
                     'required',
                     'file',
-                    'mimetypes:application/pdf,application/x-pdf,application/acrobat,applications/vnd.pdf,text/pdf,text/x-pdf,image/jpeg,image/png,image/webp',
+                    'mimetypes:application/pdf,application/x-pdf,application/acrobat,applications/vnd.pdf,text/pdf,text/x-pdf,image/jpeg,image/png,image/webp,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint',
                     'max:'.$upload_max_filesize
                 ]
             ]);
@@ -67,12 +68,20 @@ class DocExtractController extends Controller
             $fileData = base64_encode($file->get());
             $mimeTypeString = $file->getMimeType();
 
+            //dd($mimeTypeString);
+
+            $pptxMime = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+            $pptMime  = 'application/vnd.ms-powerpoint';
+
             // Mapeamos dinámicamente el tipo MIME según el archivo subido
             $geminiMimeType = match ($mimeTypeString) {
                 'application/pdf' => MimeType::APPLICATION_PDF,
                 'image/jpeg' => MimeType::IMAGE_JPEG,
                 'image/png' => MimeType::IMAGE_PNG,
                 'image/webp' => MimeType::IMAGE_WEBP,
+                // Agregamos el soporte para PowerPoint directamente con su MIME String
+                $pptxMime => $pptxMime,
+                $pptMime => $pptMime,
                 default => throw new \InvalidArgumentException("Tipo de archivo no soportado: {$mimeTypeString}"),
             };
 
@@ -125,17 +134,38 @@ class DocExtractController extends Controller
                 responseMimeType: ResponseMimeType::APPLICATION_JSON,
                 responseSchema: $schema
             );
-            // 2. Prompt neutral para PDFs o Imágenes
             // Usamos 'generativeModel' pasándole explícitamente el string de 'gemini-2.5-flash'
-            $response = $client->generativeModel(model: 'gemini-2.5-flash')
-            ->withGenerationConfig($generationConfig)
-            ->generateContent(
-                'Extract the structured data from the provided document image or file.',
-                new Blob(
-                    mimeType: $geminiMimeType, // Tipo MIME dinámico
-                    data: $fileData
-                )
-            );
+            if ($mimeTypeString === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+                $pptReader = IOFactory::createReader('PowerPoint2007');
+                $phpPresentation = $pptReader->load($file->getRealPath());
+                $extractedText = '';
+
+                foreach ($phpPresentation->getAllSlides() as $slide) {
+                    foreach ($slide->getShapeCollection() as $shape) {
+                        if (method_exists($shape, 'getText')) {
+                            $extractedText .= $shape->getText() . "\n";
+                        }
+                    }
+                }
+
+                // En lugar de enviar un Blob, envías el texto en el prompt
+                $response = $client->generativeModel(model: 'gemini-2.5-flash')
+                    ->withGenerationConfig($generationConfig)
+                    ->generateContent(
+                        "Extract the structured data from the following presentation text:\n\n" . $extractedText
+                    );
+            }else{
+                // Prompt neutral para PDFs o Imágenes
+                $response = $client->generativeModel(model: 'gemini-2.5-flash')
+                ->withGenerationConfig($generationConfig)
+                ->generateContent(
+                    'Extract the structured data from the provided document image or file.',
+                    new Blob(
+                        mimeType: $geminiMimeType, // Tipo MIME dinámico
+                        data: $fileData
+                    )
+                );
+            }
 
             $extractedData = json_decode($response->text(), true);
 

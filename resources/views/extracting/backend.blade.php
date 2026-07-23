@@ -23,7 +23,7 @@
             </label>
             <input class="hidden block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none"
             aria-describedby="doc_help" id="doc" name="doc" type="file"
-            @change="previewImageDom($event.target)" accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp">
+            @change="previewImageDom($event.target)" accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,application/vnd.openxmlformats-officedocument.presentationml.presentation">
             <div class="mt-1 text-sm text-gray-500" id="doc_help">Por favor, asegúrese de que la foto sea nítida y que incluya ambas caras del documento si aplica.</div>
         </div>
 
@@ -77,6 +77,7 @@
                 validateType(target){
                     let result = true;
                     let matchText = "application/pdf|application/x-pdf|application/acrobat|applications/vnd.pdf|text/pdf|text/x-pdf|image/jpeg|image/jpg|image/png|image/webp";
+                    matchText += "|application/vnd.openxmlformats-officedocument.presentationml.presentation";
                     let isValid = target.files[0].type.match(matchText);
 
                     if(isValid){
